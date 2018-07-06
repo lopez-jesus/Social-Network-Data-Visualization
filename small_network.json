@@ -1,0 +1,27 @@
+{
+    "nodes": [
+        {
+            "id": "Albert Einstein"
+        },
+        {
+            "id": "Paul Dirac"
+        },
+        {
+            "id": "Niels Bohr"
+        }
+    ],
+    "links": [
+        {
+            "source": "Albert Einstein",
+            "target": "Paul Dirac"
+        },
+        {
+            "source": "Albert Einstein",
+            "target": "Niels Bohr"
+        },
+        {
+            "source": "Paul Dirac",
+            "target": "Niels Bohr"
+        }
+    ]
+}
