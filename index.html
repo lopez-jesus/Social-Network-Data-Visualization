@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.links line {
+  stroke: #999;
+  stroke-opacity: 0.6;
+}
+
+
+.nodes circle {
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.node:hover text {
+  display: inline;
+}
+
+.node:hover circle {
+  fill: #000;
+}
+
+</style>
+
+<svg width="1400" height="600"></svg>
+
+<form id = "parameters">
+  
+ Change Strength proportional to similarity
+ <input type="range" id="slider1" name="points" value = 15 min="0" max="100" onchange="changeLinkStrength(this.value)">
+ <p id="linkStrength" style="display:inline-block;">15</p><br>
+ 
+Charge Distance
+ <input type="range" id="slider2" name="points" value = 0 min="-100" max="100" onchange="changeLinkDistance(this.value)">
+ <p id="linkDistance" style="display:inline-block;">0</p><br> 
+ 
+Charge nodes sizes
+ <input type="range" id="slider3" name="points" value = 15 min="0" max="100" onchange="changeSize(this.value)">
+ <p id="size" style="display:inline-block;">15</p><br>
+ 
+Charge nodes attractive / repulsive potential
+ <input type="range" id="slider4" name="points" value = -600 min="-1000" max="100" onchange="changeGravity(this.value)">
+ <p id="gravity" style="display:inline-block;">0</p><br>
+ 
+</form>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script>
+
+/*require.config({
+    paths: {
+        d3: "https://d3js.org/d3.v4.min"
+     }
+ }); 
+
+require(["d3"], function(d3) {
+*/
+
+var svg = d3.select("svg"),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+  
+var color = d3.scaleOrdinal(d3.schemeCategory20);
+
+let linkForce = d3.forceLink()
+  .id(function(d) { return d.id})
+  .distance(1)
+  .strength(function(d) {return 2 * d.value});
+  
+let nodeCollide = d3.forceCollide()
+  .radius(function(d) {return d.length /300; })
+  .iterations(10);
+  
+let manyBody = d3.forceManyBody().strength(-600);
+
+let simulation = d3.forceSimulation()
+    .force("link", linkForce)
+    .force("charge", manyBody)
+    .force("center", d3.forceCenter(width / 2, height / 2))
+    .force("collide", nodeCollide);
+
+d3.json("./data/physicists.json", function(error, graph) {
+  if (error) throw error;
+  
+  var tooltip = d3.select("body")
+  	.append("div")
+  	.style("position", "absolute")
+  	.style('font-size', "25px")
+  	.style('background-color', 'white')
+  	.style("z-index", "10")
+  	.style("visibility", "hidden");
+
+  var link = svg.append("g")
+      .attr("class", "links")
+    .selectAll("line")
+    .data(graph.links)
+    .enter().append("line")
+      .attr("stroke-width", function(d) { return 2 * d.value; });
+      
+  var toggle = 0;
+  
+  var linkedByIndex = {};
+  graph.links.forEach(function(d) {
+  	linkedByIndex[d.source + "," + d.target] = true;
+  });
+  
+
+	function neighboring(a, b) {
+        return linkedByIndex[a.id + "," + b.id] || linkedByIndex[b.id + "," + a.id] || a.id == b.id;
+  }
+  
+
+  function connectedNodes() {
+      if (toggle == 0) {
+          //Reduce the opacity of all but the neighbouring nodes
+          d = d3.select(this).node().__data__;
+          node.style("opacity", function (o) {
+              return neighboring(o, d) ? 1 : 0.1;
+          });
+          link.style("opacity", function (o) {
+              return d.index==o.source.index | d.index==o.target.index ? 1 : 0.1;
+          });
+          //Reduce the op
+          toggle = 1;
+      } else {
+          //Put them back to opacity=1
+          node.style("opacity", 1);
+          link.style("opacity", 1);
+          toggle = 0;
+      }
+  }
+      
+  var node = svg.append("g")
+      .attr("class", "nodes")
+    .selectAll("circle")
+    .data(graph.nodes)
+    .enter().append("circle")
+      .attr("r", function(d) { return d.length /300; })
+      .attr("fill", function(d) { if (d.group == 1) return "red"; else return "blue" })
+      .on("mouseover", function(d){ return tooltip.style("visibility", "visible").text(d.id);})
+      .on("mousemove", function(){return tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px");})
+      .on("mouseout", function(){return tooltip.style("visibility", "hidden");})
+      .on("click", connectedNodes)
+      .call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+
+  node.append("title")
+      .text(function(d) { return d.id;});
+
+  simulation
+      .nodes(graph.nodes)
+      .on("tick", ticked);
+
+  simulation.force("link")
+      .links(graph.links);
+
+  function ticked() {
+    link
+        .attr("x1", function(d) { return d.source.x; })
+        .attr("y1", function(d) { return d.source.y; })
+        .attr("x2", function(d) { return d.target.x; })
+        .attr("y2", function(d) { return d.target.y; });
+        
+    node
+        .attr("cx", function(d) { return d.x = Math.max(d.length /300, Math.min(width - d.length /300, d.x)); })
+        .attr("cy", function(d) { return d.y = Math.max(d.length /300, Math.min(height - d.length /300, d.y)); });
+  }
+
+});
+
+function dragstarted(d) {
+  if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x;
+  d.fy = d.y;
+}
+
+function dragged(d) {
+  d.fx = d3.event.x;
+  d.fy = d3.event.y;
+}
+
+function dragended(d) {
+  if (!d3.event.active) simulation.alphaTarget(0);
+  d.fx = null;
+  d.fy = null;
+}
+
+
+function changeLinkDistance(thresh) {
+    linkForce.distance(thresh); 
+    simulation.alpha(0.5).restart();
+    d3.select("#linkDistance").text(thresh);
+}
+
+function changeLinkStrength(thresh) {
+    linkForce.strength(function(d) {return 2 * thresh / 15 * d.value}); 
+    simulation.alpha(0.5).restart();
+    d3.select("#linkStrength").text(thresh);
+}
+
+function changeSize(thresh) {
+    svg.selectAll("circle").attr("r", function(d) { return thresh / 15 * d.length /300});
+    nodeCollide.radius(function(d) {return thresh / 15 *d.length / 300});
+    simulation.alpha(0.5).restart();
+    d3.select("#size").text(thresh);
+}
+
+function changeGravity(thresh) {
+    manyBody.strength(thresh)
+    simulation.alpha(0.5).restart();
+    d3.select("#gravity").text(thresh);
+}
+
+
+
+
+//});
+
+</script>
+
+
+
+
